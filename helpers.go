@@ -126,10 +126,12 @@ func newAdr(config AdrConfig, adrName []string) {
 		panic(err)
 	}
 	adrFileName := strconv.Itoa(adr.Number) + "-" + strings.Join(strings.Split(strings.Trim(adr.Title, "\n \t"), " "), "-") + ".md"
-	f, err := os.Create(filepath.Join(config.BaseDir, adrFileName))
+	adrFullPath := filepath.Join(config.BaseDir, adrFileName)
+	f, err := os.Create(adrFullPath)
 	if err != nil {
 		panic(err)
 	}
 	template.Execute(f, adr)
 	f.Close()
+	color.Green("ADR number " + strconv.Itoa(adr.Number) + " was successfully written to : " + adrFullPath)
 }
