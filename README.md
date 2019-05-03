@@ -9,7 +9,7 @@ Go to the [releases page](https://github.com/marouni/adr/releases) and grab one 
 
 Alternatively, if you have a Go developement environment setup you can install it directly using :
 ```bash
-go install github.com/marouni/adr
+go get github.com/marouni/adr && go install github.com/marouni/adr
 ```
 
 
