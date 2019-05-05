@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/marouni/adr.svg?branch=master)](https://travis-ci.com/marouni/adr)
+
 # ADR Go
 A minimalist command line tool written in Go to work with [Architecture Decision Records](http://thinkrelevance.com/blog/2011/11/15/documenting-architecture-decisions) (ADRs).
 
