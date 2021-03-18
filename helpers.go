@@ -71,21 +71,21 @@ func initConfig(baseDir string) {
 func initTemplate() {
 	body := []byte(`
 # {{.Number}}. {{.Title}}
-======
+
 Date: {{.Date}}
 
 ## Status
-======
+
 {{.Status}}
 
 ## Context
-======
+
 
 ## Decision
-======
+
 
 ## Consequences
-======
+
 
 `)
 
