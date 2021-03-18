@@ -26,7 +26,7 @@ func setCommands(app *cli.App) {
 			Aliases:     []string{"i"},
 			Usage:       "Initializes the ADR configurations",
 			UsageText:   "adr init /home/user/adrs",
-			Description: "Initializes the ADR configuration with an optional ADR base directory\n This is a a prerequisite to running any other adr sub-command",
+			Description: "Initializes the ADR configuration with an optional ADR base directory\n This is a prerequisite to running any other adr sub-command",
 			Action: func(c *cli.Context) error {
 				initDir := c.Args().First()
 				if initDir == "" {
