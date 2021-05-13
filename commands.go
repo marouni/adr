@@ -6,7 +6,7 @@ import (
 )
 
 func setCommands(app *cli.App) {
-	app.Commands = []cli.Command{
+	app.Commands = []*cli.Command{
 		{
 			Name:    "new",
 			Aliases: []string{"c"},
@@ -16,7 +16,7 @@ func setCommands(app *cli.App) {
 				currentConfig := getConfig()
 				currentConfig.CurrentAdr++
 				updateConfig(currentConfig)
-				newAdr(currentConfig, c.Args())
+				newAdr(currentConfig, c.Args().Slice())
 				return nil
 			},
 		},
