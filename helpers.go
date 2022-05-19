@@ -50,7 +50,10 @@ var adrDefaultBaseFolder = filepath.Join(usr.HomeDir, "adr")
 
 func initBaseDir(baseDir string) {
 	if _, err := os.Stat(baseDir); os.IsNotExist(err) {
-		os.Mkdir(baseDir, 0744)
+		err = os.Mkdir(baseDir, 0744)
+		if err != nil {
+			panic(err)
+		}
 	} else {
 		color.Red(baseDir + " already exists, skipping folder creation")
 	}
@@ -58,14 +61,20 @@ func initBaseDir(baseDir string) {
 
 func initConfig(baseDir string) {
 	if _, err := os.Stat(adrConfigFolderPath); os.IsNotExist(err) {
-		os.Mkdir(adrConfigFolderPath, 0744)
+		err = os.Mkdir(adrConfigFolderPath, 0744)
+		if err != nil {
+			panic(err)
+		}
 	}
 	config := AdrConfig{baseDir, 0}
 	bytes, err := json.MarshalIndent(config, "", " ")
 	if err != nil {
 		panic(err)
 	}
-	ioutil.WriteFile(adrConfigFilePath, bytes, 0644)
+	err = ioutil.WriteFile(adrConfigFilePath, bytes, 0644)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func initTemplate() {
@@ -89,7 +98,10 @@ Date: {{.Date}}
 
 `)
 
-	ioutil.WriteFile(adrTemplateFilePath, body, 0644)
+	err = ioutil.WriteFile(adrTemplateFilePath, body, 0644)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func updateConfig(config AdrConfig) {
@@ -97,7 +109,10 @@ func updateConfig(config AdrConfig) {
 	if err != nil {
 		panic(err)
 	}
-	ioutil.WriteFile(adrConfigFilePath, bytes, 0644)
+	err = ioutil.WriteFile(adrConfigFilePath, bytes, 0644)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func getConfig() AdrConfig {
@@ -110,7 +125,10 @@ func getConfig() AdrConfig {
 		os.Exit(1)
 	}
 
-	json.Unmarshal(bytes, &currentConfig)
+	err = json.Unmarshal(bytes, &currentConfig)
+	if err != nil {
+		panic(err)
+	}
 	return currentConfig
 }
 
@@ -121,7 +139,7 @@ func newAdr(config AdrConfig, adrName []string) {
 		Number: config.CurrentAdr,
 		Status: PROPOSED,
 	}
-	template, err := template.ParseFiles(adrTemplateFilePath)
+	tpl, err := template.ParseFiles(adrTemplateFilePath)
 	if err != nil {
 		panic(err)
 	}
@@ -131,7 +149,10 @@ func newAdr(config AdrConfig, adrName []string) {
 	if err != nil {
 		panic(err)
 	}
-	template.Execute(f, adr)
-	f.Close()
+	err = tpl.Execute(f, adr)
+	if err != nil {
+		panic(err)
+	}
+	_ = f.Close()
 	color.Green("ADR number " + strconv.Itoa(adr.Number) + " was successfully written to : " + adrFullPath)
 }
