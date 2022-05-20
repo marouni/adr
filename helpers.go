@@ -129,7 +129,7 @@ func newAdr(config AdrConfig, adrName []string) {
 	if err != nil {
 		panic(err)
 	}
-	adrFileName := fmt.Sprintf("%05d", adr.Number) + "-" + strings.Join(strings.Split(strings.Trim(adr.Title, "\n \t"), " "), "-") + ".md"
+	adrFileName := fmt.Sprintf("%05d", adr.Number) + "-" + strings.ToLower(strings.Join(strings.Split(strings.Trim(adr.Title, "\n \t"), " "), "-")) + ".md"
 	adrFullPath := filepath.Join(config.BaseDir, adrFileName)
 	f, err := os.Create(adrFullPath)
 	if err != nil {
