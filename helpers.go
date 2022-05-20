@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -17,8 +18,7 @@ import (
 
 // AdrConfig ADR configuration, loaded and used by each sub-command
 type AdrConfig struct {
-	BaseDir    string `json:"base_directory"`
-	CurrentAdr int    `json:"current_id"`
+	BaseDir string `json:"base_directory"`
 }
 
 // Adr basic structure
@@ -67,7 +67,7 @@ func initConfig(baseDir string) {
 			panic(err)
 		}
 	}
-	config := AdrConfig{baseDir, 0}
+	config := AdrConfig{BaseDir: baseDir}
 	bytes, err := json.MarshalIndent(config, "", " ")
 	if err != nil {
 		panic(err)
@@ -122,7 +122,7 @@ func newAdr(config AdrConfig, adrName []string) {
 	adr := Adr{
 		Title:  strings.Join(adrName, " "),
 		Date:   time.Now().UTC(),
-		Number: config.CurrentAdr,
+		Number: findLastNumber(config) + 1,
 		Status: PROPOSED,
 	}
 	tpl, err := template.ParseFiles(adrTemplateFilePath)
@@ -141,4 +141,28 @@ func newAdr(config AdrConfig, adrName []string) {
 	}
 	_ = f.Close()
 	color.Green("ADR number " + strconv.Itoa(adr.Number) + " was successfully written to : " + adrFullPath)
+}
+
+// findLastNumber returns the highest number that is found in a directory.
+// If the directory is empty, 0 is returned.
+func findLastNumber(config AdrConfig) int {
+	var max int
+	contents, err := os.ReadDir(config.BaseDir)
+	if err != nil {
+		panic(err)
+	}
+	regex := regexp.MustCompile(`(\d{5,}).*`)
+	for _, c := range contents {
+		m := regex.FindSubmatch([]byte(c.Name()))
+		if m != nil {
+			n, err := strconv.Atoi(string(m[1]))
+			if err != nil {
+				panic(err)
+			}
+			if n >= max {
+				max = n
+			}
+		}
+	}
+	return max
 }

@@ -14,7 +14,6 @@ func setCommands(app *cli.App) {
 			Flags:   []cli.Flag{},
 			Action: func(c *cli.Context) error {
 				currentConfig := getConfig()
-				currentConfig.CurrentAdr++
 				updateConfig(currentConfig)
 				newAdr(currentConfig, c.Args())
 				return nil
