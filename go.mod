@@ -1,4 +1,4 @@
-module github.com/f-ewald/adr
+module github.com/marouni/adr
 
 go 1.18
 
