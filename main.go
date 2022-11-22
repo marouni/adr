@@ -12,7 +12,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "adr"
 	app.Usage = "Work with Architecture Decision Records (ADRs)"
-	app.Version = "0.1.0"
+	app.Version = "0.1.1"
 
 	setFlags(app)
 	setCommands(app)

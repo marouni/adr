@@ -2,11 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -16,15 +18,14 @@ import (
 
 // AdrConfig ADR configuration, loaded and used by each sub-command
 type AdrConfig struct {
-	BaseDir    string `json:"base_directory"`
-	CurrentAdr int    `json:"current_id"`
+	BaseDir string `json:"base_directory"`
 }
 
 // Adr basic structure
 type Adr struct {
 	Number int
 	Title  string
-	Date   string
+	Date   time.Time
 	Status AdrStatus
 }
 
@@ -50,7 +51,10 @@ var adrDefaultBaseFolder = filepath.Join(usr.HomeDir, "adr")
 
 func initBaseDir(baseDir string) {
 	if _, err := os.Stat(baseDir); os.IsNotExist(err) {
-		os.Mkdir(baseDir, 0744)
+		err = os.Mkdir(baseDir, 0744)
+		if err != nil {
+			panic(err)
+		}
 	} else {
 		color.Red(baseDir + " already exists, skipping folder creation")
 	}
@@ -58,38 +62,32 @@ func initBaseDir(baseDir string) {
 
 func initConfig(baseDir string) {
 	if _, err := os.Stat(adrConfigFolderPath); os.IsNotExist(err) {
-		os.Mkdir(adrConfigFolderPath, 0744)
+		err = os.Mkdir(adrConfigFolderPath, 0744)
+		if err != nil {
+			panic(err)
+		}
 	}
-	config := AdrConfig{baseDir, 0}
+	config := AdrConfig{BaseDir: baseDir}
 	bytes, err := json.MarshalIndent(config, "", " ")
 	if err != nil {
 		panic(err)
 	}
-	ioutil.WriteFile(adrConfigFilePath, bytes, 0644)
+	err = ioutil.WriteFile(adrConfigFilePath, bytes, 0644)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func initTemplate() {
-	body := []byte(`
-# {{.Number}}. {{.Title}}
-======
-Date: {{.Date}}
+	body, err := fs.ReadFile("tpl/doc.tpl.yaml")
+	if err != nil {
+		panic(err)
+	}
 
-## Status
-======
-{{.Status}}
-
-## Context
-======
-
-## Decision
-======
-
-## Consequences
-======
-
-`)
-
-	ioutil.WriteFile(adrTemplateFilePath, body, 0644)
+	err = ioutil.WriteFile(adrTemplateFilePath, body, 0644)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func updateConfig(config AdrConfig) {
@@ -97,7 +95,10 @@ func updateConfig(config AdrConfig) {
 	if err != nil {
 		panic(err)
 	}
-	ioutil.WriteFile(adrConfigFilePath, bytes, 0644)
+	err = ioutil.WriteFile(adrConfigFilePath, bytes, 0644)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func getConfig() AdrConfig {
@@ -110,28 +111,58 @@ func getConfig() AdrConfig {
 		os.Exit(1)
 	}
 
-	json.Unmarshal(bytes, &currentConfig)
+	err = json.Unmarshal(bytes, &currentConfig)
+	if err != nil {
+		panic(err)
+	}
 	return currentConfig
 }
 
 func newAdr(config AdrConfig, adrName []string) {
 	adr := Adr{
 		Title:  strings.Join(adrName, " "),
-		Date:   time.Now().Format("02-01-2006 15:04:05"),
-		Number: config.CurrentAdr,
+		Date:   time.Now().UTC(),
+		Number: findLastNumber(config) + 1,
 		Status: PROPOSED,
 	}
-	template, err := template.ParseFiles(adrTemplateFilePath)
+	tpl, err := template.ParseFiles(adrTemplateFilePath)
 	if err != nil {
 		panic(err)
 	}
-	adrFileName := strconv.Itoa(adr.Number) + "-" + strings.Join(strings.Split(strings.Trim(adr.Title, "\n \t"), " "), "-") + ".md"
+	adrFileName := fmt.Sprintf("%05d", adr.Number) + "-" + strings.ToLower(strings.Join(strings.Split(strings.Trim(adr.Title, "\n \t"), " "), "-")) + ".md"
 	adrFullPath := filepath.Join(config.BaseDir, adrFileName)
 	f, err := os.Create(adrFullPath)
 	if err != nil {
 		panic(err)
 	}
-	template.Execute(f, adr)
-	f.Close()
+	err = tpl.Execute(f, adr)
+	if err != nil {
+		panic(err)
+	}
+	_ = f.Close()
 	color.Green("ADR number " + strconv.Itoa(adr.Number) + " was successfully written to : " + adrFullPath)
+}
+
+// findLastNumber returns the highest number that is found in a directory.
+// If the directory is empty, 0 is returned.
+func findLastNumber(config AdrConfig) int {
+	var max int
+	contents, err := os.ReadDir(config.BaseDir)
+	if err != nil {
+		panic(err)
+	}
+	regex := regexp.MustCompile(`(\d{5,}).*`)
+	for _, c := range contents {
+		m := regex.FindSubmatch([]byte(c.Name()))
+		if m != nil {
+			n, err := strconv.Atoi(string(m[1]))
+			if err != nil {
+				panic(err)
+			}
+			if n >= max {
+				max = n
+			}
+		}
+	}
+	return max
 }

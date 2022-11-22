@@ -1,0 +1,11 @@
+---
+number: {{ .Number }}  # Do not change
+title: {{ .Title }}
+date: {{ .Date.Format "2006-01-02T15:04:05Z07:00" }}  # Do not change
+status: {{ .Status}}  # Should be one of: Proposed, Accepted, Deprecated, Superseded
+---
+## Context
+
+## Decision
+
+## Consequences
