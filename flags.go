@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v3"
 )
 
-func setFlags(app *cli.App) {
-	app.Flags = []cli.Flag{}
+func setFlags(cmd *cli.Command) { // Changed app *cli.App to cmd *cli.Command
+	cmd.Flags = []cli.Flag{}
 }
