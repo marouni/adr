@@ -31,3 +31,30 @@ adr new my awesome proposition
 this will create a new numbered ADR in your ADR folder :
 `xxx-my-new-awesome-proposition.md`.
 Next, just open the file in your preferred markdown editor and starting writing your ADR.
+
+## Development Environment Setup
+
+These instructions are for developers who want to build the `adr` tool from source or contribute to its development.
+
+1.  **Install Go**: Ensure you have Go installed on your system. We recommend using the latest stable version. You can find installation instructions at [https://go.dev/doc/install](https://go.dev/doc/install).
+
+2.  **Clone the Repository**:
+    ```bash
+    git clone https://github.com/marouni/adr.git
+    ```
+
+3.  **Navigate to Project Directory**:
+    ```bash
+    cd adr
+    ```
+
+4.  **Build the Project**:
+    ```bash
+    go build .
+    ```
+    This will create an executable named `adr` (or `adr.exe` on Windows) in the project directory.
+
+5.  **Run Tests**: To ensure everything is working correctly, run the tests:
+    ```bash
+    go test ./...
+    ```
