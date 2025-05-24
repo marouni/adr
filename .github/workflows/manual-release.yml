@@ -24,13 +24,13 @@ jobs:
           go-version: '1.22.x'
 
       - name: Build for Linux (amd64)
-        run: GOOS=linux GOARCH=amd64 go build -o adr-linux-amd64 main.go
+        run: GOOS=linux GOARCH=amd64 go build -o adr-linux-amd64 .
 
       - name: Build for macOS (amd64)
-        run: GOOS=darwin GOARCH=amd64 go build -o adr-macos-amd64 main.go
+        run: GOOS=darwin GOARCH=amd64 go build -o adr-macos-amd64 .
 
       - name: Build for Windows (amd64)
-        run: GOOS=windows GOARCH=amd64 go build -o adr-windows-amd64.exe main.go
+        run: GOOS=windows GOARCH=amd64 go build -o adr-windows-amd64.exe .
 
       - name: Create GitHub Release
         id: create_release
