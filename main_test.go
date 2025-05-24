@@ -1,11 +1,11 @@
 package main
 
 import (
-	"context" // Correctly placed context import
+	"context"
 	"encoding/json"
-	"io/ioutil"
 	"os"
-	"os/user"
+	// "io/ioutil" // No longer needed directly
+	// "os/user" // No longer needed directly by test setup
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -14,42 +14,40 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-var originalHomeDir string
-var tempHomeDir string
+// testMainSetup modifies the global pathCfg to use temporary paths for testing.
+// It returns the temporary home directory path and the original PathConfig to be restored later.
+func testMainSetup(t *testing.T) (string, PathConfig) {
+	originalGlobalPathCfg := *pathCfg // Save a copy of the original pathCfg values
 
-// testMainSetup sets up a temporary home directory for tests.
-func testMainSetup(t *testing.T) {
-	var err error
-	originalHomeDir = usr.HomeDir // Save original user's home directory
-	tempHomeDir, err = ioutil.TempDir("", "adr-test-home")
+	tempTestHome, err := os.MkdirTemp("", "adr-test-home-") // Use os.MkdirTemp
 	if err != nil {
-		t.Fatalf("Failed to create temp home dir: %v", err)
+		t.Fatalf("Failed to create temp test home dir: %v", err)
 	}
-	usr.HomeDir = tempHomeDir // Override user's home directory for this test
 
-	// Update path variables that depend on usr.HomeDir
-	adrConfigFolderName = ".adr"
-	adrConfigFileName = "config.json"
-	adrConfigTemplateName = "template.md"
-	adrConfigFolderPath = filepath.Join(usr.HomeDir, adrConfigFolderName)
-	adrConfigFilePath = filepath.Join(adrConfigFolderPath, adrConfigFileName)
-	adrTemplateFilePath = filepath.Join(adrConfigFolderPath, adrConfigTemplateName)
-	adrDefaultBaseFolder = filepath.Join(usr.HomeDir, "adr")
+	// Create a new PathConfig pointing to the temporary directory
+	testSpecificPathCfg := PathConfig{
+		ConfigFolderName:  ".adr",
+		ConfigFileName:    "config.json",
+		TemplateFileName:  "template.md",
+		UserHomeDir:       tempTestHome, // This field is mostly for reference within PathConfig itself
+		ConfigFolderPath:  filepath.Join(tempTestHome, ".adr"),
+		ConfigFilePath:    filepath.Join(tempTestHome, ".adr", "config.json"),
+		TemplateFilePath:  filepath.Join(tempTestHome, ".adr", "template.md"),
+		DefaultBaseFolder: filepath.Join(tempTestHome, "adr"), // Default ADRs storage
+	}
+
+	*pathCfg = testSpecificPathCfg // Point the global pathCfg to our test version
+
+	return tempTestHome, originalGlobalPathCfg
 }
 
-// testMainTeardown cleans up the temporary home directory.
-func testMainTeardown(t *testing.T) {
-	if err := os.RemoveAll(tempHomeDir); err != nil {
-		t.Logf("Warning: failed to remove temp home dir %s: %v", tempHomeDir, err)
-	}
-	usr.HomeDir = originalHomeDir // Restore original user's home directory
+// testMainTeardown restores the original pathCfg and removes the temporary directory.
+func testMainTeardown(t *testing.T, tempTestHome string, originalGlobalPathCfg PathConfig) {
+	*pathCfg = originalGlobalPathCfg // Restore original pathCfg
 
-	// Restore original path variables
-	usr, _ = user.Current() // Re-fetch current user to reset HomeDir correctly for subsequent package-level var initializations if any
-	adrConfigFolderPath = filepath.Join(usr.HomeDir, adrConfigFolderName)
-	adrConfigFilePath = filepath.Join(adrConfigFolderPath, adrConfigFileName)
-	adrTemplateFilePath = filepath.Join(adrConfigFolderPath, adrConfigTemplateName)
-	adrDefaultBaseFolder = filepath.Join(usr.HomeDir, "adr")
+	if err := os.RemoveAll(tempTestHome); err != nil {
+		t.Logf("Warning: failed to remove temp test home dir %s: %v", tempTestHome, err)
+	}
 }
 
 // Helper to run the CLI app with specific arguments
@@ -72,8 +70,8 @@ func runApp(args []string) error {
 
 // TestInitCommandDefault tests the 'init' command with default settings.
 func TestInitCommandDefault(t *testing.T) {
-	testMainSetup(t)
-	defer testMainTeardown(t)
+	tempHome, originalCfg := testMainSetup(t) // Use new setup
+	defer testMainTeardown(t, tempHome, originalCfg) // Use new teardown
 
 	args := []string{"adr", "init"}
 	err := runApp(args)
@@ -81,33 +79,33 @@ func TestInitCommandDefault(t *testing.T) {
 		t.Fatalf("init command failed: %v", err)
 	}
 
-	// 1. Test that it creates the base directory (adrDefaultBaseFolder)
-	if _, err := os.Stat(adrDefaultBaseFolder); os.IsNotExist(err) {
-		t.Errorf("Default base directory %s was not created", adrDefaultBaseFolder)
+	// 1. Test that it creates the base directory (using pathCfg)
+	if _, err := os.Stat(pathCfg.DefaultBaseFolder); os.IsNotExist(err) {
+		t.Errorf("Default base directory %s was not created", pathCfg.DefaultBaseFolder)
 	}
 
-	// 2. Test that it creates the configuration file (adrConfigFilePath)
-	if _, err := os.Stat(adrConfigFilePath); os.IsNotExist(err) {
-		t.Fatalf("Config file %s was not created", adrConfigFilePath)
+	// 2. Test that it creates the configuration file (using pathCfg)
+	if _, err := os.Stat(pathCfg.ConfigFilePath); os.IsNotExist(err) {
+		t.Fatalf("Config file %s was not created", pathCfg.ConfigFilePath)
 	}
 
 	// Verify config.json content
 	var config AdrConfig
-	configBytes, _ := ioutil.ReadFile(adrConfigFilePath)
+	configBytes, _ := os.ReadFile(pathCfg.ConfigFilePath) // Use os.ReadFile
 	json.Unmarshal(configBytes, &config)
-	if config.BaseDir != adrDefaultBaseFolder {
-		t.Errorf("Expected BaseDir in config to be %s, got %s", adrDefaultBaseFolder, config.BaseDir)
+	if config.BaseDir != pathCfg.DefaultBaseFolder {
+		t.Errorf("Expected BaseDir in config to be %s, got %s", pathCfg.DefaultBaseFolder, config.BaseDir)
 	}
 	if config.CurrentAdr != 0 {
 		t.Errorf("Expected CurrentAdr in config to be 0, got %d", config.CurrentAdr)
 	}
 
-	// 3. Test that it creates the template file (adrTemplateFilePath)
-	if _, err := os.Stat(adrTemplateFilePath); os.IsNotExist(err) {
-		t.Fatalf("Template file %s was not created", adrTemplateFilePath)
+	// 3. Test that it creates the template file (using pathCfg)
+	if _, err := os.Stat(pathCfg.TemplateFilePath); os.IsNotExist(err) {
+		t.Fatalf("Template file %s was not created", pathCfg.TemplateFilePath)
 	}
 	// Verify template.md content
-	content, _ := ioutil.ReadFile(adrTemplateFilePath)
+	content, _ := os.ReadFile(pathCfg.TemplateFilePath) // Use os.ReadFile
 	expectedTemplateContent := `
 # {{.Number}}. {{.Title}}
 ======
@@ -134,10 +132,10 @@ Date: {{.Date}}
 
 // TestInitCommandWithArg tests the 'init' command with a base directory argument.
 func TestInitCommandWithArg(t *testing.T) {
-	testMainSetup(t)
-	defer testMainTeardown(t)
+	tempHome, originalCfg := testMainSetup(t) // Use new setup
+	defer testMainTeardown(t, tempHome, originalCfg) // Use new teardown
 
-	customBaseDir := filepath.Join(tempHomeDir, "my_custom_adrs")
+	customBaseDir := filepath.Join(tempHome, "my_custom_adrs") // Ensure custom path is within tempHome
 	args := []string{"adr", "init", customBaseDir}
 	err := runApp(args)
 	if err != nil {
@@ -149,14 +147,14 @@ func TestInitCommandWithArg(t *testing.T) {
 		t.Errorf("Custom base directory %s was not created", customBaseDir)
 	}
 
-	// 2. Test that it creates the configuration file (adrConfigFilePath)
-	if _, err := os.Stat(adrConfigFilePath); os.IsNotExist(err) {
-		t.Fatalf("Config file %s was not created", adrConfigFilePath)
+	// 2. Test that it creates the configuration file (using pathCfg)
+	if _, err := os.Stat(pathCfg.ConfigFilePath); os.IsNotExist(err) {
+		t.Fatalf("Config file %s was not created", pathCfg.ConfigFilePath)
 	}
 
 	// Verify config.json content
 	var config AdrConfig
-	configBytes, _ := ioutil.ReadFile(adrConfigFilePath)
+	configBytes, _ := os.ReadFile(pathCfg.ConfigFilePath) // Use os.ReadFile
 	json.Unmarshal(configBytes, &config)
 	if config.BaseDir != customBaseDir {
 		t.Errorf("Expected BaseDir in config to be %s, got %s", customBaseDir, config.BaseDir)
@@ -165,19 +163,19 @@ func TestInitCommandWithArg(t *testing.T) {
 		t.Errorf("Expected CurrentAdr in config to be 0, got %d", config.CurrentAdr)
 	}
 
-	// 3. Test that it creates the template file (adrTemplateFilePath) - should still be in ~/.adr
-	if _, err := os.Stat(adrTemplateFilePath); os.IsNotExist(err) {
-		t.Fatalf("Template file %s was not created", adrTemplateFilePath)
+	// 3. Test that it creates the template file (using pathCfg)
+	if _, err := os.Stat(pathCfg.TemplateFilePath); os.IsNotExist(err) {
+		t.Fatalf("Template file %s was not created", pathCfg.TemplateFilePath)
 	}
 }
 
 // TestInitCommandBaseDirExists tests the 'init' command when the base directory already exists.
 func TestInitCommandBaseDirExists(t *testing.T) {
-	testMainSetup(t)
-	defer testMainTeardown(t)
+	tempHome, originalCfg := testMainSetup(t) // Use new setup
+	defer testMainTeardown(t, tempHome, originalCfg) // Use new teardown
 
-	// Create the default base directory beforehand
-	if err := os.MkdirAll(adrDefaultBaseFolder, 0755); err != nil {
+	// Create the default base directory beforehand (using pathCfg)
+	if err := os.MkdirAll(pathCfg.DefaultBaseFolder, 0755); err != nil {
 		t.Fatalf("Failed to pre-create base directory: %v", err)
 	}
 
@@ -187,19 +185,19 @@ func TestInitCommandBaseDirExists(t *testing.T) {
 		t.Fatalf("init command failed when base directory already exists: %v", err)
 	}
 
-	// Check config and template are still created
-	if _, err := os.Stat(adrConfigFilePath); os.IsNotExist(err) {
-		t.Fatalf("Config file %s was not created when base dir existed", adrConfigFilePath)
+	// Check config and template are still created (using pathCfg)
+	if _, err := os.Stat(pathCfg.ConfigFilePath); os.IsNotExist(err) {
+		t.Fatalf("Config file %s was not created when base dir existed", pathCfg.ConfigFilePath)
 	}
-	if _, err := os.Stat(adrTemplateFilePath); os.IsNotExist(err) {
-		t.Fatalf("Template file %s was not created when base dir existed", adrTemplateFilePath)
+	if _, err := os.Stat(pathCfg.TemplateFilePath); os.IsNotExist(err) {
+		t.Fatalf("Template file %s was not created when base dir existed", pathCfg.TemplateFilePath)
 	}
 }
 
 // TestNewCommand tests the 'new' command.
 func TestNewCommand(t *testing.T) {
-	testMainSetup(t)
-	defer testMainTeardown(t)
+	tempHome, originalCfg := testMainSetup(t) // Use new setup
+	defer testMainTeardown(t, tempHome, originalCfg) // Use new teardown
 
 	// 1. Initialize ADR first
 	initArgs := []string{"adr", "init"}
@@ -229,15 +227,15 @@ func TestNewCommand(t *testing.T) {
 	expectedAdrNumber := 1
 	// Corrected filename expectation: ADR title parts are not lowercased by newAdr function.
 	expectedFileName := strconv.Itoa(expectedAdrNumber) + "-" + strings.ReplaceAll(adrTitle, " ", "-") + ".md"
-	// adrDefaultBaseFolder is already set up by testMainSetup to be tempHomeDir/adr
-	expectedFilePath := filepath.Join(adrDefaultBaseFolder, expectedFileName)
+	// ADRs are created in the DefaultBaseFolder defined by pathCfg
+	expectedFilePath := filepath.Join(pathCfg.DefaultBaseFolder, expectedFileName)
 
 	if _, err := os.Stat(expectedFilePath); os.IsNotExist(err) {
-		t.Fatalf("New ADR file %s was not created. Content of %s: %v", expectedFilePath, adrDefaultBaseFolder, listDir(t, adrDefaultBaseFolder))
+		t.Fatalf("New ADR file %s was not created. Content of %s: %v", expectedFilePath, pathCfg.DefaultBaseFolder, listDir(t, pathCfg.DefaultBaseFolder))
 	}
 
 	// 4. Verify ADR file content (basic check based on template)
-	content, err := ioutil.ReadFile(expectedFilePath)
+	content, err := os.ReadFile(expectedFilePath) // Use os.ReadFile
 	if err != nil {
 		t.Fatalf("Failed to read new ADR file: %v", err)
 	}
@@ -250,7 +248,7 @@ func TestNewCommand(t *testing.T) {
 
 	// 5. Verify config.json is updated (CurrentAdr incremented)
 	var config AdrConfig
-	configBytes, _ := ioutil.ReadFile(adrConfigFilePath)
+	configBytes, _ := os.ReadFile(pathCfg.ConfigFilePath) // Use os.ReadFile
 	json.Unmarshal(configBytes, &config)
 	if config.CurrentAdr != expectedAdrNumber { // After creating ADR #1, CurrentAdr should be 1
 		t.Errorf("Expected CurrentAdr in config to be %d, got %d", expectedAdrNumber, config.CurrentAdr)
@@ -266,13 +264,13 @@ func TestNewCommand(t *testing.T) {
 	expectedAdrNumber2 := 2
 	// Corrected filename expectation for second ADR
 	expectedFileName2 := strconv.Itoa(expectedAdrNumber2) + "-" + strings.ReplaceAll(adrTitle2, " ", "-") + ".md"
-	expectedFilePath2 := filepath.Join(adrDefaultBaseFolder, expectedFileName2)
+	expectedFilePath2 := filepath.Join(pathCfg.DefaultBaseFolder, expectedFileName2)
 
 	if _, err := os.Stat(expectedFilePath2); os.IsNotExist(err) {
-		t.Fatalf("Second New ADR file %s was not created. Content of %s: %v", expectedFilePath2, adrDefaultBaseFolder, listDir(t, adrDefaultBaseFolder))
+		t.Fatalf("Second New ADR file %s was not created. Content of %s: %v", expectedFilePath2, pathCfg.DefaultBaseFolder, listDir(t, pathCfg.DefaultBaseFolder))
 	}
 	
-	configBytes2, _ := ioutil.ReadFile(adrConfigFilePath)
+	configBytes2, _ := os.ReadFile(pathCfg.ConfigFilePath) // Use os.ReadFile
 	json.Unmarshal(configBytes2, &config)
 	if config.CurrentAdr != expectedAdrNumber2 {
 		t.Errorf("Expected CurrentAdr in config to be %d after second ADR, got %d", expectedAdrNumber2, config.CurrentAdr)
@@ -281,18 +279,44 @@ func TestNewCommand(t *testing.T) {
 
 // listDir is a helper to list directory contents for debugging.
 func listDir(t *testing.T, dir string) []string {
-	files, err := ioutil.ReadDir(dir)
+	dirEntries, err := os.ReadDir(dir) // Changed from ioutil.ReadDir to os.ReadDir
 	if err != nil {
 		t.Logf("Error listing directory %s: %v", dir, err)
 		return nil
 	}
 	var names []string
-	for _, f := range files {
-		names = append(names, f.Name())
+	for _, de := range dirEntries { // Iterate over os.DirEntry
+		names = append(names, de.Name())
 	}
 	return names
 }
 
-// TODO: Add more tests, e.g. for 'new' command when init has not been run (should fail gracefully).
+// TestNewCommandBeforeInit tests that 'new' command fails if 'init' was not run.
+func TestNewCommandBeforeInit(t *testing.T) {
+	tempHome, originalCfg := testMainSetup(t)
+	defer testMainTeardown(t, tempHome, originalCfg)
+
+	// Do not run 'init' command.
+
+	adrTitle := "Should Fail ADR"
+	newArgs := []string{"adr", "new", adrTitle}
+	err := runApp(newArgs)
+
+	if err == nil {
+		t.Fatalf("'new' command should have failed because 'init' was not run, but it succeeded.")
+	}
+	// As per commands.go, NewCmd returns the error from getConfig() if config is not found.
+	// The error from getConfig will be an os.PathError if the file doesn't exist.
+	// We can check for this. The error message "No ADR configuration is found!" is printed by
+	// commands.go, but the actual error returned is from os.ReadFile.
+	if !os.IsNotExist(err) {
+		t.Logf("Received error: %v. Type: %T", err, err)
+		// This check is important. If it's not an IsNotExist error, it might be a different problem.
+		// For example, if getConfig returned a different error type, this test might still pass
+		// the err == nil check but for the wrong reason.
+		tErrorf("Expected a file not found error (os.IsNotExist), but got a different error type.")
+	}
+}
+
 // TODO: Test 'new' command with multi-word title arguments. (Covered by current TestNewCommand)
 // TODO: Test edge cases for file system permissions (harder to test reliably in unit/integration tests).
