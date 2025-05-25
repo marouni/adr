@@ -314,7 +314,7 @@ func TestNewCommandBeforeInit(t *testing.T) {
 		// This check is important. If it's not an IsNotExist error, it might be a different problem.
 		// For example, if getConfig returned a different error type, this test might still pass
 		// the err == nil check but for the wrong reason.
-		tErrorf("Expected a file not found error (os.IsNotExist), but got a different error type.")
+		t.Errorf("Expected a file not found error (os.IsNotExist), but got a different error type.")
 	}
 }
 
