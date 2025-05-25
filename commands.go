@@ -13,10 +13,23 @@ var NewCmd = cli.Command{
 	Usage:   "Create a new ADR",
 	Flags:   []cli.Flag{},
 	Action: func(ctx context.Context, cmd *cli.Command) error { // Updated action signature
-		currentConfig := getConfig()
+		currentConfig, err := getConfig()
+		if err != nil {
+			color.Red("No ADR configuration is found!")
+			color.HiGreen("Start by initializing ADR configuration, check 'adr init --help' for more help")
+			return err // Propagate error
+		}
 		currentConfig.CurrentAdr++
-		updateConfig(currentConfig)
-		newAdr(currentConfig, cmd.Args().Slice()) // Use cmd.Args().Slice() for arguments
+		err = updateConfig(currentConfig)
+		if err != nil {
+			color.Red("Error updating ADR configuration: %v", err)
+			return err // Propagate error
+		}
+		err = newAdr(currentConfig, cmd.Args().Slice()) // Use cmd.Args().Slice() for arguments
+		if err != nil {
+			color.Red("Error creating new ADR: %v", err)
+			return err // Propagate error
+		}
 		return nil
 	},
 }
@@ -33,12 +46,20 @@ var InitCmd = cli.Command{
 		if initDir == "" {
 			// Check if no arguments were provided, as Get(0) on empty Args might panic or return empty.
 			// urfave/cli/v3 Args.Get(0) returns "" if not present, so this check is okay.
-			initDir = adrDefaultBaseFolder
+			initDir = GetDefaultBaseFolder() // Use the getter from helpers.go (main package)
 		}
 		color.Green("Initializing ADR base at " + initDir)
 		initBaseDir(initDir)
-		initConfig(initDir)
-		initTemplate()
+		err := initConfig(initDir)
+		if err != nil {
+			color.Red("Error initializing ADR configuration: %v", err)
+			return err // Propagate error
+		}
+		err = initTemplate()
+		if err != nil {
+			color.Red("Error initializing ADR template: %v", err)
+			return err // Propagate error
+		}
 		return nil
 	},
 }
